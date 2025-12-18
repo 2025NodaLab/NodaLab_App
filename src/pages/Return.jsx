@@ -1,26 +1,37 @@
-// src/pages/Return.jsx
 import { useEffect, useState } from "react";
-import { setupDevUser } from "../utils/devUser";
+import { supabase } from "../supabaseClient";
 
-export default function Return({ api }) {
-  setupDevUser();
-
-  const [books, setBooks] = useState([]);
+export default function Return() {
+  const [borrowedBooks, setBorrowedBooks] = useState([]);
   const [selectedBook, setSelectedBook] = useState(null);
   const [showModal, setShowModal] = useState(false);
 
   const userId = localStorage.getItem("userId");
-  const userIdNum = Number(userId);
 
+  // --- 借りている本を取得 ---
   useEffect(() => {
-    api.getBooksWithRentInfo().then((data) => {
-      setBooks(
-        data.filter(
-          (b) => b.currentRent && b.currentRent.userid === userIdNum
-        )
-      );
-    });
-  }, [api, userIdNum]);
+    const fetchBorrowed = async () => {
+      const { data, error } = await supabase
+        .from("rent")
+        .select(`
+          bookid,
+          rentdate,
+          returndate,
+          book:bookid (title)
+        `)
+        .eq("userid", userId)
+        .is("returndate", null);
+
+      if (error) {
+        console.error(error);
+        return;
+      }
+
+      setBorrowedBooks(data);
+    };
+
+    fetchBorrowed();
+  }, [userId]);
 
   const handleReturnClick = (book) => {
     setSelectedBook(book);
@@ -30,19 +41,37 @@ export default function Return({ api }) {
   const confirmReturn = async () => {
     if (!selectedBook) return;
 
-    await api.returnBook(selectedBook.id, userIdNum);
+    const { error } = await supabase
+      .from("rent")
+      .update({ returndate: new Date() })
+      .eq("bookid", selectedBook.bookid)
+      .eq("userid", userId)
+      .is("returndate", null); // ← rentid 不要！
 
-    alert(`「${selectedBook.title}」を返却しました！`);
+    if (error) {
+      alert("返却処理でエラーが発生しました");
+      console.error(error);
+      return;
+    }
 
     setShowModal(false);
     setSelectedBook(null);
 
-    const all = await api.getBooksWithRentInfo();
-    setBooks(
-      all.filter(
-        (b) => b.currentRent && b.currentRent.userid === userIdNum
-      )
-    );
+    alert(`「${selectedBook.book.title}」を返却しました！`);
+
+    // 再読み込み
+    const refreshed = await supabase
+      .from("rent")
+      .select(`
+        bookid,
+        rentdate,
+        returndate,
+        book:bookid (title)
+      `)
+      .eq("userid", userId)
+      .is("returndate", null);
+
+    setBorrowedBooks(refreshed.data || []);
   };
 
   return (
@@ -54,9 +83,9 @@ export default function Return({ api }) {
       <p style={{ marginTop: "10px", opacity: 0.7 }}>借りている書籍一覧</p>
 
       <ul style={{ marginTop: "25px", listStyle: "none", padding: 0 }}>
-        {books.map((book) => (
+        {borrowedBooks.map((item) => (
           <li
-            key={book.id}
+            key={item.bookid + item.rentdate}
             style={{
               display: "flex",
               justifyContent: "space-between",
@@ -64,23 +93,10 @@ export default function Return({ api }) {
               borderBottom: "1px solid #eee",
             }}
           >
-            <span>
-              {book.title}
-              {book.dueDate && (
-                <span
-                  style={{
-                    color: "gray",
-                    marginLeft: "8px",
-                    fontSize: "13px",
-                  }}
-                >
-                  （返却予定日: {book.dueDate}）
-                </span>
-              )}
-            </span>
+            <span>{item.book.title}</span>
 
             <button
-              onClick={() => handleReturnClick(book)}
+              onClick={() => handleReturnClick(item)}
               style={{
                 padding: "5px 12px",
                 background: "#f5ba4cff",
@@ -95,13 +111,14 @@ export default function Return({ api }) {
           </li>
         ))}
 
-        {books.length === 0 && (
+        {borrowedBooks.length === 0 && (
           <p style={{ opacity: 0.6, marginTop: "10px" }}>
             借りている書籍はありません。
           </p>
         )}
       </ul>
 
+      {/* モーダル */}
       {showModal && (
         <div
           style={{
@@ -123,7 +140,7 @@ export default function Return({ api }) {
             }}
           >
             <h3>確認</h3>
-            <p>本当に「{selectedBook?.title}」を返しますか？</p>
+            <p>本当に「{selectedBook?.book.title}」を返しますか？</p>
 
             <div
               style={{

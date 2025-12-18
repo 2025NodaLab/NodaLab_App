@@ -1,8 +1,9 @@
 // src/pages/Borrow.jsx
 import { useEffect, useState } from "react";
 import { setupDevUser } from "../utils/devUser";
+import { api } from "../supabaseClient";
 
-export default function Borrow({ api }) {
+export default function Borrow() {
   setupDevUser();
 
   const [keyword, setKeyword] = useState("");
@@ -13,14 +14,15 @@ export default function Borrow({ api }) {
 
   const userId = localStorage.getItem("userId");
 
-  // 初回ロード：借りられる本（state=0）
+  // ▼ 初回ロード：Supabase からデータ取得
   useEffect(() => {
     api.getBooksWithRentInfo().then((data) => {
-      setBooks(data.filter((b) => b.state === 0));
+      // isBorrowed = true のものは貸出中 → 表示しない
+      setBooks(data.filter((b) => !b.isBorrowed));
     });
-  }, [api]);
+  }, []);
 
-  // フィルタ処理
+  // ▼ 検索
   const filteredBooks = books.filter((book) => {
     const matchKeyword = book.title.includes(keyword);
     const matchGenre = genre === "" || book.genre === genre;
@@ -32,14 +34,14 @@ export default function Borrow({ api }) {
     setShowModal(true);
   };
 
-  // ===== 借りる処理 =====
+  // ▼ 貸出処理
   const confirmBorrow = async () => {
     if (!selectedBook) return;
 
-    // Supabase API 呼び出し
+    // rent 追加
     await api.borrowBook(selectedBook.id, userId);
 
-    // 返却期限（表示用）
+    // 返却日
     const today = new Date();
     const due = new Date();
     due.setDate(today.getDate() + 14);
@@ -47,20 +49,14 @@ export default function Borrow({ api }) {
       due.getMonth() + 1
     ).padStart(2, "0")}/${String(due.getDate()).padStart(2, "0")}`;
 
-    alert(
-      `「${selectedBook.title}」を借りました！\n返却日は ${formattedDue} です。`
-    );
+    alert(`「${selectedBook.title}」を借りました！\n返却日は ${formattedDue} です。`);
 
-    // モーダル閉じる
     setShowModal(false);
     setSelectedBook(null);
 
-    // ★ Supabase の UPDATE が反映されるのを少し待つ
-    await new Promise((resolve) => setTimeout(resolve, 200));
-
-    // ★ 最新状態を取得（ = 借りた本が一覧から消える！）
+    // 📌 再取得（貸出済みは除外される）
     const all = await api.getBooksWithRentInfo();
-    setBooks(all.filter((b) => b.state === 0));
+    setBooks(all.filter((b) => !b.isBorrowed));
   };
 
   return (
@@ -104,7 +100,7 @@ export default function Borrow({ api }) {
         </select>
       </div>
 
-      {/* 一覧 */}
+      {/* 検索結果 */}
       <div style={{ marginTop: "30px" }}>
         <h2 style={{ fontFamily: "Zen Maru Gothic", fontWeight: 450 }}>
           検索結果
