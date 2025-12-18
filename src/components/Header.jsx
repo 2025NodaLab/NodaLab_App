@@ -1,19 +1,17 @@
-import { useLocation, useNavigate } from "react-router-dom";
+// src/components/Header.jsx
+import { useNavigate, useLocation } from "react-router-dom";
 
 export default function Header() {
   const location = useLocation();
   const navigate = useNavigate();
 
-  // ★ ログインページではヘッダー非表示
-  if (location.pathname === "/") {
-    return null;
-  }
+  if (location.pathname === "/") return null;
 
-  const role = localStorage.getItem("role");
+  const userName = localStorage.getItem("userName");
+  const status = Number(localStorage.getItem("status"));
 
   const logout = () => {
-    localStorage.removeItem("isLoggedIn");
-    localStorage.removeItem("role");
+    localStorage.clear();
     navigate("/");
   };
 
@@ -27,39 +25,36 @@ export default function Header() {
         display: "flex",
         justifyContent: "space-between",
         alignItems: "center",
-        height: "70px",       
+        height: "55px",       // ★ 高さを小さく
         boxSizing: "border-box",
       }}
     >
       <h2
         onClick={() => navigate("/home")}
-        style={{ 
-            cursor: "pointer", 
-            fontFamily: '"Kiwi Maru", sans-serif',
-            fontSize: "20px",
-            margin: 0,
-
-         }}
+        style={{
+          cursor: "pointer",
+          fontSize: "20px",   // ★ 少し小さめに
+          margin: 0,
+        }}
       >
         NodaLab's Library
       </h2>
 
-      <div style={{ display: "flex", alignItems: "center", gap: "15px" }}>
-        {role && (
-          <span style={{ opacity: 0.8 }}>
-            {role === "teacher" ? "先生ログイン中" : "生徒ログイン中"}
-          </span>
-        )}
+      <div style={{ display: "flex", alignItems: "center", gap: "16px" }}>
+        <span style={{ fontSize: "14px" }}>
+          {userName} さんログイン中（{status === 0 ? "先生" : "生徒"}）
+        </span>
 
         <button
           onClick={logout}
           style={{
-            padding: "6px 12px",
-            background: "#e74c3c",
+            background: "red",
             color: "white",
             border: "none",
-            borderRadius: "6px",
+            padding: "6px 12px",
             cursor: "pointer",
+            borderRadius: "4px",
+            fontSize: "14px",
           }}
         >
           ログアウト

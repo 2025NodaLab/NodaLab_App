@@ -1,41 +1,45 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { supabase } from "../supabaseClient";
 
 export default function Login() {
   const [id, setId] = useState("");
   const [pw, setPw] = useState("");
   const navigate = useNavigate();
 
-  const handleLogin = () => {
+  const handleLogin = async () => {
     if (id === "" || pw === "") {
       alert("ID と パスワードを入力してください");
       return;
     }
 
-    // ★ 先生ログイン
-    if (id === "teacher" && pw === "teacher") {
-      localStorage.setItem("isLoggedIn", "true");
-      localStorage.setItem("role", "teacher");
-      localStorage.setItem("userId", "teacher");
+    // --- Supabase でユーザー取得 ---
+    const { data: member, error } = await supabase
+      .from("member")
+      .select("*")
+      .eq("id", Number(id))
+      .single();
 
-      alert("先生としてログインしました！");
-      navigate("/home");
+    if (error || !member) {
+      alert("ID が存在しません");
       return;
     }
 
-    // ★ 生徒ログイン
-    if (id === "student" && pw === "student") {
-      localStorage.setItem("isLoggedIn", "true");
-      localStorage.setItem("role", "student");
-      localStorage.setItem("userId", "student");
-
-      alert("生徒としてログインしました！");
-      navigate("/home");
+    // PW は id と同じ仕様
+    if (pw !== String(member.id)) {
+      alert("パスワードが違います");
       return;
     }
 
-    // ★ それ以外はログイン禁止
-    alert("ID またはパスワードが正しくありません");
+    // --- ログイン情報保存 ---
+    localStorage.setItem("isLoggedIn", "true");
+    localStorage.setItem("userId", member.id);
+    localStorage.setItem("userName", member.name);
+    localStorage.setItem("role", member.status === 0 ? "teacher" : "student");
+
+    alert(`${member.name} としてログインしました！`);
+
+    navigate("/home"); // ← 前と同じ挙動
   };
 
   return (
@@ -90,12 +94,6 @@ export default function Login() {
           ログイン
         </button>
       </div>
-
-      <p style={{ opacity: 0.6, marginTop: "20px", fontSize: "14px" }}>
-        先生用: teacher / teacher  
-        <br />
-        生徒用: student / student
-      </p>
     </div>
   );
 }

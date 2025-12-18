@@ -1,34 +1,48 @@
-import { useState } from "react";
+// src/pages/Return.jsx
+import { useEffect, useState } from "react";
 import { setupDevUser } from "../utils/devUser";
 
-export default function Return() {
+export default function Return({ api }) {
   setupDevUser();
 
+  const [books, setBooks] = useState([]);
   const [selectedBook, setSelectedBook] = useState(null);
   const [showModal, setShowModal] = useState(false);
 
   const userId = localStorage.getItem("userId");
-  const allBorrowed = JSON.parse(localStorage.getItem("borrowedBooks") || "{}");
-  const borrowedBooks = allBorrowed[userId] || [];
+  const userIdNum = Number(userId);
+
+  useEffect(() => {
+    api.getBooksWithRentInfo().then((data) => {
+      setBooks(
+        data.filter(
+          (b) => b.currentRent && b.currentRent.userid === userIdNum
+        )
+      );
+    });
+  }, [api, userIdNum]);
 
   const handleReturnClick = (book) => {
     setSelectedBook(book);
     setShowModal(true);
   };
 
-  const confirmReturn = () => {
-    const updated = borrowedBooks.filter((b) => b.id !== selectedBook.id);
+  const confirmReturn = async () => {
+    if (!selectedBook) return;
 
-    allBorrowed[userId] = updated;
-    localStorage.setItem("borrowedBooks", JSON.stringify(allBorrowed));
+    await api.returnBook(selectedBook.id, userIdNum);
+
+    alert(`「${selectedBook.title}」を返却しました！`);
 
     setShowModal(false);
     setSelectedBook(null);
 
-    setTimeout(() => {
-      alert(`「${selectedBook.title}」を返却しました！`);
-      window.location.reload();
-    }, 0);
+    const all = await api.getBooksWithRentInfo();
+    setBooks(
+      all.filter(
+        (b) => b.currentRent && b.currentRent.userid === userIdNum
+      )
+    );
   };
 
   return (
@@ -40,7 +54,7 @@ export default function Return() {
       <p style={{ marginTop: "10px", opacity: 0.7 }}>借りている書籍一覧</p>
 
       <ul style={{ marginTop: "25px", listStyle: "none", padding: 0 }}>
-        {borrowedBooks.map((book) => (
+        {books.map((book) => (
           <li
             key={book.id}
             style={{
@@ -52,9 +66,17 @@ export default function Return() {
           >
             <span>
               {book.title}
-              <span style={{ color: "gray", marginLeft: "8px", fontSize: "13px" }}>
-                （返却日: {book.dueDate}）
-              </span>
+              {book.dueDate && (
+                <span
+                  style={{
+                    color: "gray",
+                    marginLeft: "8px",
+                    fontSize: "13px",
+                  }}
+                >
+                  （返却予定日: {book.dueDate}）
+                </span>
+              )}
             </span>
 
             <button
@@ -73,8 +95,10 @@ export default function Return() {
           </li>
         ))}
 
-        {borrowedBooks.length === 0 && (
-          <p style={{ opacity: 0.6, marginTop: "10px" }}>借りている書籍はありません。</p>
+        {books.length === 0 && (
+          <p style={{ opacity: 0.6, marginTop: "10px" }}>
+            借りている書籍はありません。
+          </p>
         )}
       </ul>
 
@@ -101,7 +125,14 @@ export default function Return() {
             <h3>確認</h3>
             <p>本当に「{selectedBook?.title}」を返しますか？</p>
 
-            <div style={{ marginTop: "20px", display: "flex", gap: "10px", justifyContent: "center" }}>
+            <div
+              style={{
+                marginTop: "20px",
+                display: "flex",
+                gap: "10px",
+                justifyContent: "center",
+              }}
+            >
               <button onClick={confirmReturn} style={{ padding: "8px 16px" }}>
                 はい
               </button>

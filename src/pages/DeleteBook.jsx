@@ -1,21 +1,30 @@
-import { useState } from "react";
-import { books } from "../data/books";
+// src/pages/DeleteBook.jsx
+import { useEffect, useState } from "react";
 
-export default function DeleteBook() {
+export default function DeleteBook({ api }) {
+  const [books, setBooks] = useState([]);
   const [selectedBook, setSelectedBook] = useState(null);
   const [showModal, setShowModal] = useState(false);
+
+  useEffect(() => {
+    api.getBooksWithRentInfo().then((data) => setBooks(data));
+  }, [api]);
 
   const handleDelete = (book) => {
     setSelectedBook(book);
     setShowModal(true);
   };
 
-  const confirmDelete = () => {
+  const confirmDelete = async () => {
+    if (!selectedBook) return;
+
+    await api.deleteBook(selectedBook.id);
+
     alert(`「${selectedBook.title}」を削除しました！`);
+
+    setBooks(books.filter((b) => b.id !== selectedBook.id));
     setShowModal(false);
     setSelectedBook(null);
-
-    // ★ 本番はDB/APIで削除する処理に差し替える
   };
 
   return (
@@ -77,7 +86,14 @@ export default function DeleteBook() {
             <h3>確認</h3>
             <p>本当に「{selectedBook?.title}」を削除しますか？</p>
 
-            <div style={{ marginTop: "20px", display: "flex", gap: "10px", justifyContent: "center" }}>
+            <div
+              style={{
+                marginTop: "20px",
+                display: "flex",
+                gap: "10px",
+                justifyContent: "center",
+              }}
+            >
               <button onClick={confirmDelete} style={{ padding: "8px 16px" }}>
                 はい
               </button>

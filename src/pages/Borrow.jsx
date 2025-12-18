@@ -1,28 +1,27 @@
-import { useState } from "react";
+// src/pages/Borrow.jsx
+import { useEffect, useState } from "react";
 import { setupDevUser } from "../utils/devUser";
-import { books } from "../data/books";
 
-export default function Borrow() {
+export default function Borrow({ api }) {
   setupDevUser();
 
   const [keyword, setKeyword] = useState("");
   const [genre, setGenre] = useState("");
   const [selectedBook, setSelectedBook] = useState(null);
   const [showModal, setShowModal] = useState(false);
+  const [books, setBooks] = useState([]);
 
   const userId = localStorage.getItem("userId");
-  const userName = localStorage.getItem("userName") || "Unknown"; // ★ 追加（借りる人の名前）
 
-  // ユーザーの借りてる本
-  const borrowedData = JSON.parse(localStorage.getItem("borrowedBooks") || "{}");
-  const userBorrowed = borrowedData[userId] || [];
-  const borrowedIds = new Set(userBorrowed.map((b) => b.id));
+  // 初回ロード：借りられる本（state=0）
+  useEffect(() => {
+    api.getBooksWithRentInfo().then((data) => {
+      setBooks(data.filter((b) => b.state === 0));
+    });
+  }, [api]);
 
-  // 借りれる本一覧（借り済みを除外）
-  const availableBooks = books.filter((b) => !borrowedIds.has(b.id));
-
-  // 検索フィルタ
-  const filteredBooks = availableBooks.filter((book) => {
+  // フィルタ処理
+  const filteredBooks = books.filter((book) => {
     const matchKeyword = book.title.includes(keyword);
     const matchGenre = genre === "" || book.genre === genre;
     return matchKeyword && matchGenre;
@@ -33,37 +32,35 @@ export default function Borrow() {
     setShowModal(true);
   };
 
-  const confirmBorrow = () => {
-    const borrowed = JSON.parse(localStorage.getItem("borrowedBooks") || "{}");
-    if (!borrowed[userId]) borrowed[userId] = [];
+  // ===== 借りる処理 =====
+  const confirmBorrow = async () => {
+    if (!selectedBook) return;
 
-    // 返却予定日計算
+    // Supabase API 呼び出し
+    await api.borrowBook(selectedBook.id, userId);
+
+    // 返却期限（表示用）
     const today = new Date();
     const due = new Date();
     due.setDate(today.getDate() + 14);
-    const formattedDue = `${due.getFullYear()}/${String(due.getMonth() + 1).padStart(
-      2,
-      "0"
-    )}/${String(due.getDate()).padStart(2, "0")}`;
+    const formattedDue = `${due.getFullYear()}/${String(
+      due.getMonth() + 1
+    ).padStart(2, "0")}/${String(due.getDate()).padStart(2, "0")}`;
 
-    // ★ borrowerName と borrower を追加して保存
-    borrowed[userId].push({
-      ...selectedBook,
-      dueDate: formattedDue,
-      borrower: userId,
-      borrowerName: userName,
-    });
+    alert(
+      `「${selectedBook.title}」を借りました！\n返却日は ${formattedDue} です。`
+    );
 
-    localStorage.setItem("borrowedBooks", JSON.stringify(borrowed));
-
+    // モーダル閉じる
     setShowModal(false);
     setSelectedBook(null);
 
-    // UI 更新
-    setTimeout(() => {
-      alert(`「${selectedBook.title}」を借りました！\n返却日は ${formattedDue} です。`);
-      window.location.reload();
-    }, 0);
+    // ★ Supabase の UPDATE が反映されるのを少し待つ
+    await new Promise((resolve) => setTimeout(resolve, 200));
+
+    // ★ 最新状態を取得（ = 借りた本が一覧から消える！）
+    const all = await api.getBooksWithRentInfo();
+    setBooks(all.filter((b) => b.state === 0));
   };
 
   return (
@@ -99,9 +96,11 @@ export default function Borrow() {
           }}
         >
           <option value="">全ジャンル</option>
-          <option value="novel">小説</option>
-          <option value="study">学習</option>
-          <option value="comic">漫画</option>
+          <option value="Linux">Linux</option>
+          <option value="自己啓発">自己啓発</option>
+          <option value="生成AI">生成AI</option>
+          <option value="Java">Java</option>
+          <option value="ソフトウェアテスト">ソフトウェアテスト</option>
         </select>
       </div>
 
