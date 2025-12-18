@@ -1,13 +1,33 @@
+// src/pages/NewBook.jsx
 import { useState } from "react";
 
-export default function NewBook() {
+export default function NewBook({ api }) {
   const [title, setTitle] = useState("");
   const [author, setAuthor] = useState("");
   const [booknumber, setBookNumber] = useState("");
   const [genre, setGenre] = useState("");
 
-  const handleSubmit = () => {
-    alert(`登録しました！\nタイトル: ${title}\n著者: ${author}\n書籍番号: ${booknumber}\nジャンル: ${genre}`);
+  const handleSubmit = async () => {
+    if (!title || !author || !booknumber || !genre) {
+      alert("全部入力してね！");
+      return;
+    }
+
+    const id = Number(booknumber);
+    if (Number.isNaN(id)) {
+      alert("書籍番号は数字で入力してね");
+      return;
+    }
+
+    await api.addBook({
+      id,
+      title,
+      author,
+      genre,
+    });
+
+    alert("登録しました！");
+
     setTitle("");
     setAuthor("");
     setBookNumber("");
@@ -15,13 +35,14 @@ export default function NewBook() {
   };
 
   return (
-    <div style={{ padding: "20px", display: "flex", justifyContent: "center" }}>
+    <div
+      style={{ padding: "20px", display: "flex", justifyContent: "center" }}
+    >
       <div style={{ width: "100%", maxWidth: "480px", textAlign: "center" }}>
         <h1 style={{ fontFamily: "Zen Maru Gothic", fontWeight: 550 }}>
           新しい書籍を登録する
         </h1>
 
-        {/* 入力フォーム */}
         <div
           style={{
             marginTop: "30px",
@@ -58,7 +79,7 @@ export default function NewBook() {
           />
 
           <input
-            type="int"
+            type="text"
             placeholder="書籍番号"
             value={booknumber}
             onChange={(e) => setBookNumber(e.target.value)}
@@ -81,10 +102,12 @@ export default function NewBook() {
             }}
           >
             <option value="">ジャンルを選択</option>
-            <option value="novel">小説</option>
-            <option value="study">学習</option>
-            <option value="comic">漫画</option>
-            <option value="others">その他</option>
+            <option value="Linux">Linux</option>
+            <option value="自己啓発">自己啓発</option>
+            <option value="生成AI">生成AI</option>
+            <option value="Java">Java</option>
+            <option value="ソフトウェアテスト">ソフトウェアテスト</option>
+            <option value="その他">その他</option>
           </select>
 
           <button
