@@ -50,6 +50,15 @@ export default function AdminHome() {
           <span style={japaneseTitle}>貸出状況</span>
           <span style={englishLabel}>Status</span>
         </Link>
+
+        {/* 生徒アカウント管理 */}
+        <Link
+          to="/admin/members"
+          style={circleButtonStyle("#b4e7c8")}
+        >
+          <span style={japaneseTitle}>生徒管理</span>
+          <span style={englishLabel}>Users</span>
+        </Link>
       </div>
     </div>
   );

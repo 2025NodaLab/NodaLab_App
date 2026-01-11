@@ -1,4 +1,5 @@
-// src/App.js
+// src/App.js2026/1/09
+import { supabase } from "./supabaseClient";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { createClient } from "@supabase/supabase-js";
 import flowerImg from "./assets/flower.png";
@@ -10,18 +11,15 @@ import Borrow from "./pages/Borrow";
 import Return from "./pages/Return";
 import AdminHome from "./pages/AdminHome";
 import Login from "./pages/Login";
+import Signup from "./pages/Signup";
+import ForgotPassword from "./pages/ForgotPassword";
+import ResetPassword from "./pages/ResetPassword";
 import DeleteBook from "./pages/DeleteBook";
+import ManageMembers from "./pages/ManageMembers";
 
 import ProtectedRoute from "./components/ProtectedRoute";
 import AdminRoute from "./components/AdminRoute";
 import Header from "./components/Header";
-
-// ★ Supabase クライアント
-const SUPABASE_URL = "https://uuqylozpigroitzafyqf.supabase.co";
-const SUPABASE_ANON_KEY =
-  "sb_publishable_WIUHaQ9CxUissF-bgB-B6A_u3LHdGho";
-
-const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 // ★ 共通 API 関数たち
 async function getBooksWithRentInfo() {
@@ -119,7 +117,7 @@ async function deleteBook(id) {
   const { error: rentError } = await supabase
     .from("rent")
     .delete()
-    .eq("bookid", id);
+    .eq("book_id", id);
 
   if (rentError) {
     console.error("rent 削除エラー:", rentError);
@@ -170,10 +168,10 @@ async function returnBook(bookId, userId) {
   const { data: rents, error: selectError } = await supabase
     .from("rent")
     .select("*")
-    .eq("bookid", bookId)
-    .eq("userid", Number(userId))
-    .is("returndate", null)
-    .order("rentdate", { ascending: false })
+    .eq("book_id", bookId)
+    .eq("member_id", Number(userId))
+    .is("return_date", null)
+    .order("rent_date", { ascending: false })
     .limit(1);
 
   if (selectError) {
@@ -193,8 +191,8 @@ async function returnBook(bookId, userId) {
   const { error: updateError } = await supabase
     .from("rent")
     .update({ returndate: now })
-    .eq("bookid", target.bookid)
-    .eq("rentdate", target.rentdate);
+    .eq("book_id", target.bookid)
+    .eq("rent_date", target.rentdate);
 
   if (updateError) {
     console.error("return rent 更新エラー:", updateError);
@@ -251,6 +249,9 @@ function App() {
 
         <Routes>
           <Route path="/" element={<Login />} />
+          <Route path="/signup" element={<Signup />} />
+          <Route path="/forgot-password" element={<ForgotPassword />} />
+          <Route path="/reset-password" element={<ResetPassword />} />
 
           <Route
             path="/home"
@@ -320,6 +321,15 @@ function App() {
             element={
               <AdminRoute>
                 <AdminHome api={api} />
+              </AdminRoute>
+            }
+          />
+
+          <Route
+            path="/admin/members"
+            element={
+              <AdminRoute>
+                <ManageMembers />
               </AdminRoute>
             }
           />

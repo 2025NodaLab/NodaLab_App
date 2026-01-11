@@ -5,7 +5,7 @@ export default function Header() {
   const location = useLocation();
   const navigate = useNavigate();
 
-  if (location.pathname === "/") return null;
+  if (["/", "/signup", "/forgot-password", "/reset-password"].includes(location.pathname)) return null;
 
   const userName = localStorage.getItem("userName");
   const status = Number(localStorage.getItem("status"));
@@ -42,7 +42,7 @@ export default function Header() {
 
       <div style={{ display: "flex", alignItems: "center", gap: "16px" }}>
         <span style={{ fontSize: "14px" }}>
-          {userName} さんログイン中（{status === 0 ? "先生" : "生徒"}）
+          {userName} さんログイン中（{status === 2 ? "先生" : "生徒"}）
         </span>
 
         <button
