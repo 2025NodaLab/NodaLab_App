@@ -4,6 +4,7 @@ import { supabase } from "../supabaseClient";
 export default function BookList() {
   const [books, setBooks] = useState([]);
   const [borrowedMap, setBorrowedMap] = useState({});
+  const status = Number(localStorage.getItem("status")); // 先生=2
 
   // 本一覧取得
   const loadBooks = async () => {
@@ -16,39 +17,41 @@ export default function BookList() {
   };
 
   // 貸出状況取得
-  const loadBorrowInfo = async () => {
-    const { data, error } = await supabase
-      .from("rent")
-      .select(`
-        bookid,
-        userid,
-        rentdate,
-        returndate,
-        member:userid(name)
-      `)
-      .order("rentdate", { ascending: false });
+const loadBorrowInfo = async () => {
+  const { data, error } = await supabase
+    .from("rent")
+    .select(`
+      book_id,
+      member_id,
+      rent_date,
+      due_date,
+      return_date,
+      member:member_id(name)
+    `)
+    .order("rent_date", { ascending: false });
 
-    if (error) {
-      console.error(error);
-      return;
-    }
+  if (error) {
+    console.error(error);
+    return;
+  }
 
-    // 借りてるものだけ（returndate が null）
-    const active = data.filter((r) => r.returndate === null);
+  // 借りてるものだけ（return_date が null）
+  const active = data.filter((r) => r.return_date === null);
 
-    const map = {};
-    active.forEach((r) => {
-      map[r.bookid] = {
-        borrower: r.userid,
-        borrowerName: r.member?.name || "不明",
-        dueDate: calcDueDate(r.rentdate),
-      };
-    });
+  const map = {};
+  active.forEach((r) => {
+    map[r.book_id] = {
+      borrower: r.member_id,
+      borrowerName: r.member?.name || "不明",
+      dueDate: formatDate(r.due_date),
+    };
+  });
 
-    setBorrowedMap(map);
-  };
+  setBorrowedMap(map);
+};
 
-  // 返却日計算（借りた日 +14日）
+
+  // 返却日計算
   const calcDueDate = (rentdate) => {
     const base = new Date(rentdate);
     base.setDate(base.getDate() + 14);
@@ -57,7 +60,13 @@ export default function BookList() {
       "0"
     )}/${String(base.getDate()).padStart(2, "0")}`;
   };
-
+  const formatDate = (iso) => {
+    if (!iso) return "";
+    const d = new Date(iso);
+    return `${d.getFullYear()}/${String(d.getMonth() + 1).padStart(2, "0")}/${String(
+      d.getDate()
+    ).padStart(2, "0")}`;
+  };
   useEffect(() => {
     loadBooks();
     loadBorrowInfo();
@@ -87,8 +96,14 @@ export default function BookList() {
 
               {borrowed ? (
                 <span style={{ color: "red" }}>
-                  貸出中（借りている人: {borrowed.borrowerName} ／ 返却日:{" "}
-                  {borrowed.dueDate}）
+                  {status === 2 ? (
+                    <>
+                      貸出中（借りている人: {borrowed.borrowerName} ／ 返却日:{" "}
+                      {borrowed.dueDate}）
+                    </>
+                  ) : (
+                    <>貸出中</>
+                  )}
                 </span>
               ) : (
                 <span style={{ color: "green" }}>在庫あり</span>

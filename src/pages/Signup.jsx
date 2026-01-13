@@ -32,7 +32,7 @@ export default function Signup() {
     // Supabase設定で「メール確認必須」にしていると user が null のことがあります
     const authUser = data.user;
 
-    // 2) member テーブルに紐づけ情報を保存
+    // 2) member テーブルに紐づけ情報を保存（authUserが取れる場合）
     // role: 生徒=1 / 先生=2, is_active: 在籍=1 / 停止=0
     if (authUser) {
       const { error: memberErr } = await supabase
@@ -103,7 +103,7 @@ export default function Signup() {
           checked={isTeacher}
           onChange={(e) => setIsTeacher(e.target.checked)}
         />
-        先生として登録（チェックを付けると先生用アカウントになります）
+        先生として登録（チェックを付けると role=2 で登録されます）
       </label>
 
       <button onClick={handleSignup} style={{ padding: "10px", width: "100%" }}>

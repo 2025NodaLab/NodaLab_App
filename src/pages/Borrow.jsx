@@ -84,7 +84,7 @@ export default function Borrow() {
       return;
     }
 
-    // rent 追加（RLSで最終チェックされる）
+    // rent 追加
     const ok = await api.borrowBook(selectedBook.id, userId);
     if (!ok) return;
 
@@ -92,7 +92,7 @@ export default function Borrow() {
     const cnt = await api.countActiveBorrows(userId);
     setActiveCount(cnt);
 
-    // 返却日（表示用：API側は settings に合わせて due_date を計算済み）
+    // 返却日
     const today = new Date();
     const due = new Date();
     due.setDate(today.getDate() + 14);
@@ -148,11 +148,9 @@ export default function Borrow() {
           }}
         >
           <option value="">全ジャンル</option>
-          <option value="Linux">Linux</option>
-          <option value="自己啓発">自己啓発</option>
-          <option value="生成AI">生成AI</option>
-          <option value="Java">Java</option>
-          <option value="ソフトウェアテスト">ソフトウェアテスト</option>
+          <option value="雑誌">雑誌</option>
+          <option value="参考書">参考書</option>
+          <option value="その他">その他</option>
         </select>
       </div>
 

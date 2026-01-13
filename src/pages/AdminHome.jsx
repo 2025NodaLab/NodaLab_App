@@ -22,6 +22,7 @@ export default function AdminHome() {
           gap: "60px",
           justifyContent: "center",
           marginBottom: "30px",
+          flexWrap: "wrap",
         }}
       >
         {/* 書籍追加 */}
@@ -53,8 +54,8 @@ export default function AdminHome() {
 
         {/* 生徒アカウント管理 */}
         <Link
-          to="/admin/members"
-          style={circleButtonStyle("#b4e7c8")}
+          to="/admin/students"
+          style={circleButtonStyle("#b7e4c7")}
         >
           <span style={japaneseTitle}>生徒管理</span>
           <span style={englishLabel}>Users</span>
