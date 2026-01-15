@@ -1,7 +1,7 @@
 import { Link } from "react-router-dom";
 
 export default function Home() {
-  const role = localStorage.getItem("role");
+  const status = Number(localStorage.getItem("status")); // 先生=2
 
   return (
     <div
@@ -128,7 +128,7 @@ export default function Home() {
       </div>
 
     {/* 🔥 先生用ページ（丸ボタン） */}
-        {role === "teacher" && (
+        {status === 2 && (
         <Link
             to="/admin"
             style={{

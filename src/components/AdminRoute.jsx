@@ -3,9 +3,9 @@ import { Navigate } from "react-router-dom";
 
 export default function AdminRoute({ children }) {
   const isLoggedIn = localStorage.getItem("isLoggedIn");
-  const status = Number(localStorage.getItem("status")); // 0 = 先生
+  const status = Number(localStorage.getItem("status")); // 先生=2
 
-  if (!isLoggedIn || status !== 0) {
+  if (!isLoggedIn || status !== 2) {
     return <Navigate to="/" replace />;
   }
 

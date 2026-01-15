@@ -8,17 +8,18 @@ export default function NewBook({ api }) {
   const [genre, setGenre] = useState("");
 
   const handleSubmit = async () => {
-    if (!title || !author || !booknumber || !genre) {
-      alert("全部入力してね！");
-      return;
-    }
+  if (!title || !booknumber || !genre) {
+    alert("必須項目を入力してね！（書籍名・書籍番号・ジャンル）");
+    return;
+  }
 
-    const id = Number(booknumber);
-    if (Number.isNaN(id)) {
-      alert("書籍番号は数字で入力してね");
-      return;
-    }
+  const id = Number(booknumber);
+  if (Number.isNaN(id)) {
+    alert("書籍番号は数字で入力してね");
+    return;
+  }
 
+  try {
     await api.addBook({
       id,
       title,
@@ -32,7 +33,19 @@ export default function NewBook({ api }) {
     setAuthor("");
     setBookNumber("");
     setGenre("");
-  };
+  } catch (err) {
+    console.error("addBook failed:", err);
+
+    const msg =
+      err?.message ??
+      err?.error?.message ??
+      err?.details ??
+      (typeof err === "string" ? err : JSON.stringify(err, null, 2));
+
+    alert(`登録に失敗しました: ${msg}`);
+  }
+};
+
 
   return (
     <div
@@ -102,11 +115,8 @@ export default function NewBook({ api }) {
             }}
           >
             <option value="">ジャンルを選択</option>
-            <option value="Linux">Linux</option>
-            <option value="自己啓発">自己啓発</option>
-            <option value="生成AI">生成AI</option>
-            <option value="Java">Java</option>
-            <option value="ソフトウェアテスト">ソフトウェアテスト</option>
+            <option value="雑誌">雑誌</option>
+            <option value="参考書">参考書</option>
             <option value="その他">その他</option>
           </select>
 

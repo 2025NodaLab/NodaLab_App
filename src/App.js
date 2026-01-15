@@ -1,6 +1,7 @@
+// src/App.js2026/1/09
 // src/App.js
+import { supabase } from "./supabaseClient";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
-import { createClient } from "@supabase/supabase-js";
 import flowerImg from "./assets/flower.png";
 
 import Home from "./pages/Home";
@@ -10,20 +11,52 @@ import Borrow from "./pages/Borrow";
 import Return from "./pages/Return";
 import AdminHome from "./pages/AdminHome";
 import Login from "./pages/Login";
+import Signup from "./pages/Signup";
+import ForgotPassword from "./pages/ForgotPassword";
+import ResetPassword from "./pages/ResetPassword";
 import DeleteBook from "./pages/DeleteBook";
+import ManageStudents from "./pages/ManageStudents";
 
 import ProtectedRoute from "./components/ProtectedRoute";
 import AdminRoute from "./components/AdminRoute";
 import Header from "./components/Header";
 
-// ★ Supabase クライアント
-const SUPABASE_URL = "https://uuqylozpigroitzafyqf.supabase.co";
-const SUPABASE_ANON_KEY =
-  "sb_publishable_WIUHaQ9CxUissF-bgB-B6A_u3LHdGho";
+/**
+ * settings テーブルは「基本1行」の想定（bool id で新規行を作らせない制約）
+ * 取得できない場合はデフォルト値を使う
+ */
+async function getCurrentSettings() {
+  const defaults = {
+    loan_days_current: 14,
+    borrow_limit_current: 3,
+  };
 
-const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+  const { data, error } = await supabase
+    .from("settings")
+    .select("loan_days_current, borrow_limit_current")
+    .limit(1);
 
-// ★ 共通 API 関数たち
+  if (error) {
+    console.error("settings 読み込みエラー:", error);
+    return defaults;
+  }
+
+  const row = data?.[0];
+  if (!row) return defaults;
+
+  return {
+    loan_days_current:
+      typeof row.loan_days_current === "number"
+        ? row.loan_days_current
+        : defaults.loan_days_current,
+    borrow_limit_current:
+      typeof row.borrow_limit_current === "number"
+        ? row.borrow_limit_current
+        : defaults.borrow_limit_current,
+  };
+}
+
+// ★ book 一覧 + 未返却 rent + 借り手の名前 + 返却期限（due_date）をマージ
 async function getBooksWithRentInfo() {
   // book 一覧
   const { data: books, error: bookError } = await supabase
@@ -36,180 +69,215 @@ async function getBooksWithRentInfo() {
     throw bookError;
   }
 
-  // まだ返却されていない貸出
+  // 未返却の貸出のみ（return_date が null）
   const { data: rents, error: rentError } = await supabase
     .from("rent")
     .select("*")
-    .is("returndate", null);
+    .is("return_date", null);
 
   if (rentError) {
     console.error("rent 読み込みエラー:", rentError);
     throw rentError;
   }
 
-  // 借りている人の ID を集めて member から名前を取る
-  const userIds = [...new Set(rents.map((r) => r.userid))];
+  // 借りている人のIDを集め、member から名前を取る
+  const memberIds = [...new Set((rents || []).map((r) => r.member_id))];
   let membersById = {};
 
-  if (userIds.length > 0) {
+  if (memberIds.length > 0) {
     const { data: members, error: memberError } = await supabase
       .from("member")
-      .select("*")
-      .in("id", userIds);
+      .select("id, name, role, is_active")
+      .in("id", memberIds);
 
     if (memberError) {
       console.error("member 読み込みエラー:", memberError);
       throw memberError;
     }
 
-    membersById = Object.fromEntries(
-      members.map((m) => [m.id, m])
-    );
+    membersById = Object.fromEntries((members || []).map((m) => [m.id, m]));
   }
 
   // 本に貸出情報をマージ
-  return books.map((book) => {
-    const rent = rents.find((r) => r.bookid === book.id) || null;
+  return (books || []).map((book) => {
+    const rent = (rents || []).find((r) => r.book_id === book.id) || null;
 
     let borrowerName = null;
     let dueDate = null;
 
     if (rent) {
-      const member = membersById[rent.userid];
+      const member = membersById[rent.member_id];
       borrowerName = member ? member.name : null;
 
-      if (rent.rentdate) {
-        const rentDate = new Date(rent.rentdate);
-        const due = new Date(rentDate);
-        due.setDate(rentDate.getDate() + 14); // 14日後
-
-        const yyyy = due.getFullYear();
-        const mm = String(due.getMonth() + 1).padStart(2, "0");
-        const dd = String(due.getDate()).padStart(2, "0");
+      if (rent.due_date) {
+        const d = new Date(rent.due_date);
+        const yyyy = d.getFullYear();
+        const mm = String(d.getMonth() + 1).padStart(2, "0");
+        const dd = String(d.getDate()).padStart(2, "0");
         dueDate = `${yyyy}/${mm}/${dd}`;
       }
     }
 
     return {
       ...book,
-      currentRent: rent,
+      currentRent: rent, // 未返却 rent があれば入る
       borrowerName,
       dueDate,
     };
   });
 }
 
+// ★ book 追加（schema: id, title, author, genre）
 async function addBook({ id, title, author, genre }) {
+  const bookId = Number(id);
+  if (Number.isNaN(bookId)) {
+    throw new Error("書籍番号（id）が不正です");
+  }
+
   const { error } = await supabase.from("book").insert({
-    id,
+    id: bookId,
     title,
-    author,
+    author: author || null, // author は空なら null
     genre,
-    state: 0, // 在庫あり
   });
 
   if (error) {
     console.error("addBook エラー:", error);
-    throw error;
+    throw new Error(error.message || "書籍追加に失敗しました");
   }
 }
 
+// ★ book 削除（FKがある想定なので rent → book の順で削除）
 async function deleteBook(id) {
-  // まず rent の関連レコードを消す（FK制約対策）
+  const bookId = Number(id);
+  if (Number.isNaN(bookId)) {
+    throw new Error("削除対象の書籍IDが不正です");
+  }
+
+  // 先に rent を消す
   const { error: rentError } = await supabase
     .from("rent")
     .delete()
-    .eq("bookid", id);
+    .eq("book_id", bookId);
 
   if (rentError) {
     console.error("rent 削除エラー:", rentError);
-    throw rentError;
+    throw new Error(rentError.message || "貸出データの削除に失敗しました");
   }
 
-  const { error: bookError } = await supabase
-    .from("book")
-    .delete()
-    .eq("id", id);
+  // book を消す
+  const { error: bookError } = await supabase.from("book").delete().eq("id", bookId);
 
   if (bookError) {
     console.error("book 削除エラー:", bookError);
-    throw bookError;
+    throw new Error(bookError.message || "書籍削除に失敗しました");
   }
 }
 
+// ★ 貸出（schema: rent.member_id, book_id, rent_date, due_date, return_date）
 async function borrowBook(bookId, userId) {
-  const now = new Date().toISOString();
+  const bId = Number(bookId);
+  const mId = Number(userId);
 
-  // rent に1件追加
-  const { error: rentError } = await supabase.from("rent").insert({
-    bookid: bookId,
-    userid: Number(userId),
-    rentdate: now,
-    returndate: null,
+  if (Number.isNaN(bId) || Number.isNaN(mId)) {
+    throw new Error("貸出パラメータが不正です");
+  }
+
+  const settings = await getCurrentSettings();
+
+  // 同じ本が既に貸出中でないか確認（未返却があるなら貸出不可）
+  const { data: existingActive, error: existingError } = await supabase
+    .from("rent")
+    .select("id")
+    .eq("book_id", bId)
+    .is("return_date", null)
+    .limit(1);
+
+  if (existingError) {
+    console.error("borrow 既存貸出チェックエラー:", existingError);
+    throw new Error(existingError.message || "貸出チェックに失敗しました");
+  }
+
+  if (existingActive && existingActive.length > 0) {
+    throw new Error("この本はすでに貸出中です");
+  }
+
+  // 同時貸出上限チェック（未返却件数）
+  const { count, error: countError } = await supabase
+    .from("rent")
+    .select("id", { count: "exact", head: true })
+    .eq("member_id", mId)
+    .is("return_date", null);
+
+  if (countError) {
+    console.error("borrow 上限チェックエラー:", countError);
+    throw new Error(countError.message || "貸出上限チェックに失敗しました");
+  }
+
+  const activeCount = typeof count === "number" ? count : 0;
+  if (activeCount >= settings.borrow_limit_current) {
+    throw new Error(`同時貸出は最大 ${settings.borrow_limit_current} 冊までです`);
+  }
+
+  const now = new Date(now.getTime() + 9 * 60 * 60 * 1000).toISOString();
+  const due = new Date(now);
+  due.setDate(due.getDate() + settings.loan_days_current);
+
+  const { error } = await supabase.from("rent").insert({
+    book_id: bId,
+    member_id: mId,
+    rent_date: now.toISOString(),
+    due_date: due.toISOString(),
+    return_date: null,
   });
 
-  if (rentError) {
-    console.error("borrow rent 追加エラー:", rentError);
-    throw rentError;
-  }
-
-  // book.state を 1 = 貸出中 に更新
-  const { error: bookError } = await supabase
-    .from("book")
-    .update({ state: 1 })
-    .eq("id", bookId);
-
-  if (bookError) {
-    console.error("borrow book 更新エラー:", bookError);
-    throw bookError;
+  if (error) {
+    console.error("borrow rent 追加エラー:", error);
+    throw new Error(error.message || "貸出に失敗しました");
   }
 }
 
+// ★ 返却（未返却 rent を探して return_date を埋める）
 async function returnBook(bookId, userId) {
-  // 未返却レコードを1件取得
+  const bId = Number(bookId);
+  const mId = Number(userId);
+
+  if (Number.isNaN(bId) || Number.isNaN(mId)) {
+    throw new Error("返却パラメータが不正です");
+  }
+
+  // 未返却の貸出を1件取得（最新）
   const { data: rents, error: selectError } = await supabase
     .from("rent")
     .select("*")
-    .eq("bookid", bookId)
-    .eq("userid", Number(userId))
-    .is("returndate", null)
-    .order("rentdate", { ascending: false })
+    .eq("book_id", bId)
+    .eq("member_id", mId)
+    .is("return_date", null)
+    .order("rent_date", { ascending: false })
     .limit(1);
 
   if (selectError) {
     console.error("return select エラー:", selectError);
-    throw selectError;
+    throw new Error(selectError.message || "返却対象の取得に失敗しました");
   }
 
-  const target = rents && rents[0];
+  const target = rents?.[0];
   if (!target) {
-    console.warn("未返却の貸出が見つかりませんでした");
+    // 返却対象なし（すでに返却済み等）
     return;
   }
 
   const now = new Date().toISOString();
 
-  // returndate を更新
+  // 主キー id で更新
   const { error: updateError } = await supabase
     .from("rent")
-    .update({ returndate: now })
-    .eq("bookid", target.bookid)
-    .eq("rentdate", target.rentdate);
+    .update({ return_date: now })
+    .eq("id", target.id);
 
   if (updateError) {
     console.error("return rent 更新エラー:", updateError);
-    throw updateError;
-  }
-
-  // book.state を 0 = 在庫あり に戻す
-  const { error: bookError } = await supabase
-    .from("book")
-    .update({ state: 0 })
-    .eq("id", bookId);
-
-  if (bookError) {
-    console.error("return book 更新エラー:", bookError);
-    throw bookError;
+    throw new Error(updateError.message || "返却に失敗しました");
   }
 }
 
@@ -251,6 +319,9 @@ function App() {
 
         <Routes>
           <Route path="/" element={<Login />} />
+          <Route path="/signup" element={<Signup />} />
+          <Route path="/forgot-password" element={<ForgotPassword />} />
+          <Route path="/reset-password" element={<ResetPassword />} />
 
           <Route
             path="/home"
@@ -320,6 +391,15 @@ function App() {
             element={
               <AdminRoute>
                 <AdminHome api={api} />
+              </AdminRoute>
+            }
+          />
+
+          <Route
+            path="/admin/students"
+            element={
+              <AdminRoute>
+                <ManageStudents />
               </AdminRoute>
             }
           />
